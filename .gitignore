@@ -1,0 +1,9 @@
+# Sensitive Information
+*.env
+*.log
+
+# Server Data
+*.json
+
+# Whatever the fuck this is
+*.pyc
