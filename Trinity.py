@@ -11,40 +11,47 @@ import threading # Required for WebSockets
 
 # Miscellaneous Modules
 import time # Required for logs
-import os # Required for KeyboardInterrupt (DEBUG) and loading .env
+import os # Required for KeyboardInterrupt (DEBUG) and loading config files
 import sys # Required for KeyboardInterrupt (DEBUG)
+import configparser # Load a  back-end server config file
+import traceback # Error handling
 
 # Load sensitive information
 import dotenv
 dotenv.load_dotenv()
 
-SRV_Name = os.getenv('SRV_Name')
-SRV_Desc = os.getenv('SRV_Desc')
-SRV_Vers = os.getenv('SRV_Vers')
-
-# SSL
-SSL_Cert = os.getenv('SSL_Cert')
-SSL_Key = os.getenv('SSL_Key')
-SSL_Options = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-SSL_Options.load_cert_chain(SSL_Cert, keyfile=SSL_Key)
-
 # Own Modules
 from SN_PyDepends import *
 
-Routine_Timeout = 3600
+""" [!] This function makes debugging harder """
+def ServerCFG():
+    Log(f'[System]: Configuring server...')
+    SRV_CFG = LoadCFG(os.path.basename(__file__).replace(".py", ".cfg"))
+    
+    """ .env Variables """
+    SSL_Cert = os.getenv('SSL_Cert')
+    SSL_Key = os.getenv('SSL_Key')
 
-# api.sirio-network.com Certificate
+    """ .cfg Variables """
+    SRV_Name = SRV_CFG["Info"]["Name"]
+    SRV_Desc = SRV_CFG["Info"]["Description"]
+    SRV_Vers = SRV_CFG["Info"]["Version"]
+    
+    RoutineTimeout = int(SRV_CFG["API"]["RoutineTimeout"])
+    API_RawPort = int(SRV_CFG["API"]["RawPort"])
+    API_WebPort = int(SRV_CFG["API"]["WebPort"])
+    API_PacketSize = int(SRV_CFG["API"]["PacketSize"])
 
+    """ Processed Variables """
+    API_RawSocket = socket.gethostname()
+    API_WebSocket = socket.socket()
 
+    SSL_Options = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    SSL_Options.load_cert_chain(SSL_Cert, keyfile=SSL_Key)
 
-# Server Information
-API_RawSocket = socket.gethostname()
-API_WebSocket = socket.socket()
-API_RawPort = 1407
-API_WebPort = 443
-API_PacketSize = 8192
+    globals().update(locals())
 
-
+""" Service Functions """
 def SirioAPI_Thread():
     Log(f'[System] INFO: Initializing SirioAPI...')
 
@@ -56,9 +63,9 @@ def SirioAPI_Thread():
         else:
             Log(f'[ERROR] Invalid Request: "{str(Client_Request)}" !')
             return "INVALID_REQUEST"
-
-    """
-    def RawSocket_Server():
+        
+    """ Socket Handlers
+    def RawSocket_Server(): # This is broken right now
         Log(f'INFO: Starting RawSockets Server...')
         async def Socket_Handler(Connection_Socket):
             # Make the client connection readable
@@ -107,38 +114,40 @@ def SirioAPI_Thread():
     #threading.Thread(target=RawSocket_Server).start()
     threading.Thread(target=WebSocket_Server).start()
 
+
+""" Server State Functions """
+
 def Shutdown():
     Log(f'[System] SHUTDOWN: Shutting down server...')
-
     """
     DWeb_Title = f'The "{SRV_Name}" Server is offline!'
     DWeb_Desc = "Trinity is the Front-End Server for the Sirio Network API. All services such as the Flashcord API, Sirio News API and etc are now unreachable! <@311057290562371586> will soon provide more information."
     DWeb_Send(DWeb_Title, DWeb_Desc, "Public")
     """
-
     try: sys.exit(130)
     except SystemExit: os._exit(130)
     
 def Bootstrap():
     os.system("clear")
-    Log(f'[System] (BOOTSTRAP): Initializing server...')
+    Log(f"[System] Starting server...")
+    ServerCFG()
     threading.Thread(target=SirioAPI_Thread).start()
-    Log(f'[System] (BOOTSTRAP): Server initialized.')
-
+    Log(f'[System] Server initialized.')
     """
     DWeb_Title = f'The "{SRV_Name}" Server is now online!'
     DWeb_Desc = "Trinity is the Front-End Server for the Sirio Network API. All services such as the Flashcord API, Sirio News API and etc are now accessible."
     DWeb_Send(DWeb_Title, DWeb_Desc, "Public")
     """
-
     try:
         while True: 
-            Log(f'[System] (BOOTSTRAP): Awaiting next Routine Loop in {Routine_Timeout} seconds.')
-            time.sleep(Routine_Timeout)
-            Log(f'[System] (BOOTSTRAP): Executing Routine.')
+            Log(f'[System] Awaiting next Routine Loop in {RoutineTimeout} seconds.')
+            time.sleep(RoutineTimeout)
+            Log(f'[System] Executing Routine.')
     except KeyboardInterrupt:
         Shutdown()
 
-
 # Spark
-if __name__== '__main__': Bootstrap()
+if __name__== '__main__': 
+    while True:
+        try: Bootstrap()
+        except Exception: Crash(traceback.format_exc(),False)

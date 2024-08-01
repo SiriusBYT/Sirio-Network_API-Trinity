@@ -1,11 +1,11 @@
 clear
-echo [Trinity API] Script Started
-cd /System/Services/Trinity-API
+echo [Trinity Relay] Script Started
+cd /System/Services/Trinity-Relay
 while :
 do
-	echo [Trinity API] Info: Launching the Trinity API...
+	echo [Trinity Relay] Info: Launching the Trinity Relay...
 	python3 Trinity.py
-	echo [Trinity API] WARNING: Server has crashed or shutted down ! Restarting server automatically in 10 seconds.
+	echo [Trinity Relay] WARNING: A SERVERE Server error has occured ! Restarting server automatically in 10 seconds.
 	sleep 10
 done
-echo [Trinity API] Goodbye.
+echo [Trinity Relay] Goodbye.
