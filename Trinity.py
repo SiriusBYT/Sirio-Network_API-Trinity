@@ -25,7 +25,7 @@ from SN_PyDepends import *
 
 """ [!] This function makes debugging harder """
 def ServerCFG():
-    Log(f'[System]: Configuring server...')
+    Log(f'[System] Configuring server...')
     SRV_CFG = LoadCFG(os.path.basename(__file__).replace(".py", ".cfg"))
     
     """ .env Variables """
@@ -43,13 +43,15 @@ def ServerCFG():
     API_PacketSize = int(SRV_CFG["API"]["PacketSize"])
 
     """ Processed Variables """
-    API_RawSocket = socket.gethostname()
-    API_WebSocket = socket.socket()
+    API_SocketHost = socket.gethostname()
+    API_RawSocket = socket.socket()
 
     SSL_Options = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     SSL_Options.load_cert_chain(SSL_Cert, keyfile=SSL_Key)
 
-    globals().update(locals())
+    Log(f'[System] Loaded configuration for "{SRV_Name} - {SRV_Vers}", {SRV_Desc}.')
+
+    globals().update(locals()) # This pisses off VSCode, but i'm too lazy to global everything rn manually
 
 """ Service Functions """
 def SirioAPI_Thread():
@@ -64,11 +66,45 @@ def SirioAPI_Thread():
             Log(f'[ERROR] Invalid Request: "{str(Client_Request)}" !')
             return "INVALID_REQUEST"
         
-    """ Socket Handlers
-    def RawSocket_Server(): # This is broken right now
-        Log(f'INFO: Starting RawSockets Server...')
+    """ Socket Handlers """
+    def RawSocket_Server():
+        Log(f'[System] INFO: Starting RawSockets Server...')
+
+        async def RawSocket_Handler(Client):
+            Client_Socket, Address = Client.accept()
+            Client_Address = str(Address[0])+":"+str(Address[1])
+            Log(f'[Connection] OK: Raw://{Client_Address}.')
+            Client_Request = Client_Socket.recv(API_PacketSize).decode()
+            Log(f'[Request] Raw://{Client_Address}: "{Client_Request}".')
+            Server_Result = await Server_Redirect(Client_Request,Client_Address)
+            Log(f'[Sending] Raw://{Client_Address}: {Server_Result}')
+            Client_Socket.send(Server_Result.encode())
+
+        def RawSocket_Async(RawSocket):
+            asyncio.run(RawSocket_Handler(RawSocket))
+
+        Log(f'[System] OK: RawSockets thread started.')
+        Attempt = 1
+        while True:
+            try:
+                API_RawSocket.bind((API_SocketHost, API_RawPort))
+                Log(f"[System] Success: Binded RawSocket Server in {Attempt} attempt(s).")
+                break
+            except:
+                Log(f"[System] ERROR: Failed to bind RawSocket Server! (Attempt {Attempt})")
+                Attempt+=1
+                time.sleep(1)
+        API_RawSocket.listen()
+        Log(f'[System] OK: Now listening for RawSockets.')
+        while True:
+            threading.Thread(target=RawSocket_Async(API_RawSocket)).start()
+
+        """ This is the first code I've basically ever written in Python seriously. Let me tell you that I've seriously improved since then. 
+        This code is fucking garbage and unreadable. fml
+        Flashcord itself is next. For the 3rd fucking time. Gotta wait for discord to push their dipshit new UI first though
+        update minutes later: i basically rewrote the same shit bruh
+
         async def Socket_Handler(Connection_Socket):
-            # Make the client connection readable
             Client_Socket, Address = Connection_Socket.accept()
             Client_Address = str(Address[0])+":"+str(Address[1])
             Log(f"CONNECTED (RAW): {Client_Address}")
@@ -87,31 +123,32 @@ def SirioAPI_Thread():
             Log(f'SYSTEM: Initiated Socket Server.',False)
             API_RawSocket.listen()
             while True: threading.Thread(target=Socket_Asyncer(API_RawSocket)).start()
-    """
+            """
+
 
     def WebSocket_Server():
         Log(f'[System] INFO: Starting WebSockets Server...')
 
-        async def Websocket_Handler(websocket):
+        async def Websocket_Handler(Client):
             # Make the client connection readable
-            Address = websocket.remote_address
+            Address = Client.remote_address
             Client_Address = str(Address[0])+":"+str(Address[1])
 
             Log(f'[Connection] OK: Web://{Client_Address}.')
             
-            Client_Request = await websocket.recv()
+            Client_Request = await Client.recv()
             Log(f'[Request] Web://{Client_Address}: "{Client_Request}".')
             Server_Result = await Server_Redirect(Client_Request,Client_Address)
             Log(f'[Sending] Web://{Client_Address}: {Server_Result}')
-            await websocket.send(str())
+            await Client.send(str(Server_Result))
 
         async def Websocket_Listener():
-            Log(f'[System] OK: Websockets thread started.')
+            Log(f'[System] OK: WebSockets thread started.')
             async with websockets.serve(Websocket_Handler, "0.0.0.0", API_WebPort, ssl=SSL_Options):
                 await asyncio.Future()
         asyncio.run(Websocket_Listener())
 
-    #threading.Thread(target=RawSocket_Server).start()
+    threading.Thread(target=RawSocket_Server).start()
     threading.Thread(target=WebSocket_Server).start()
 
 
