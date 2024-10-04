@@ -13,7 +13,8 @@ import threading # Required for WebSockets
 import time # Required for logs
 import os # Required for KeyboardInterrupt (DEBUG) and loading config files
 import sys # Required for KeyboardInterrupt (DEBUG)
-import configparser # Load a  back-end server config file
+import configparser # Load the back-end server config file
+import json # Load the list of servers to redirect to
 import traceback # Error handling
 
 # Load sensitive information
@@ -23,35 +24,36 @@ dotenv.load_dotenv()
 # Own Modules
 from SN_PyDepends import *
 
-""" [!] This function makes debugging harder """
-def ServerCFG():
-    Log(f'[System] Configuring server...')
-    SRV_CFG = LoadCFG(os.path.basename(__file__).replace(".py", ".cfg"))
-    
-    """ .env Variables """
-    SSL_Cert = os.getenv('SSL_Cert')
-    SSL_Key = os.getenv('SSL_Key')
 
-    """ .cfg Variables """
-    SRV_Name = SRV_CFG["Info"]["Name"]
-    SRV_Desc = SRV_CFG["Info"]["Description"]
-    SRV_Vers = SRV_CFG["Info"]["Version"]
-    
-    RoutineTimeout = int(SRV_CFG["API"]["RoutineTimeout"])
-    API_RawPort = int(SRV_CFG["API"]["RawPort"])
-    API_WebPort = int(SRV_CFG["API"]["WebPort"])
-    API_PacketSize = int(SRV_CFG["API"]["PacketSize"])
+Log(f'[System] Configuring server...')
+SRV_CFG = LoadCFG(os.path.basename(__file__).replace(".py", ".cfg"))
 
-    """ Processed Variables """
-    API_SocketHost = socket.gethostname()
-    API_RawSocket = socket.socket()
+""" .env Variables """
+SSL_Cert = os.getenv('SSL_Cert')
+SSL_Key = os.getenv('SSL_Key')
 
-    SSL_Options = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    SSL_Options.load_cert_chain(SSL_Cert, keyfile=SSL_Key)
+""" .cfg Variables """
+SRV_Name = SRV_CFG["Info"]["Name"]
+SRV_Desc = SRV_CFG["Info"]["Description"]
+SRV_Vers = SRV_CFG["Info"]["Version"]
 
-    Log(f'[System] Loaded configuration for "{SRV_Name} - {SRV_Vers}", {SRV_Desc}.')
+Routine_Sleep = int(SRV_CFG["API"]["RoutineSleep"])
+API_RawPort = int(SRV_CFG["API"]["RawPort"])
+API_WebPort = int(SRV_CFG["API"]["WebPort"])
+API_PacketSize = int(SRV_CFG["API"]["PacketSize"])
 
-    globals().update(locals()) # This pisses off VSCode, but i'm too lazy to global everything rn manually
+""" Processed Variables """
+API_SocketHost = socket.gethostname()
+API_RawSocket = socket.socket()
+
+SSL_Options = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+SSL_Options.load_cert_chain(SSL_Cert, keyfile=SSL_Key)
+
+with open("servers.json", "r", encoding="UTF-8") as Entries:
+    APIs = json.load(Entries)
+
+Log(f'[System] Loaded configuration for "{SRV_Name} - {SRV_Vers}", {SRV_Desc}.')
+
 
 """ Service Functions """
 def SirioAPI_Thread():
@@ -59,9 +61,13 @@ def SirioAPI_Thread():
 
     async def Server_Redirect(Client_Request,Client_Address):
         Client_Request = Client_Request.split("://")
-        if doesEntryExists(Client_Request,0) == True and doesEntryExists(Client_Request,1) == True:
-            Log(f'[Forwarding] "{Client_Request[0]} API": {Client_Request[1]}')
-            return str(Client_Request[1])
+        if Client_Request[1]:
+            if Client_Request[0] in APIs.keys():
+                Log(f'[Forwarding] "{Client_Request[0]} API": {Client_Request[1]}')
+                return str(Client_Request[1])
+            else:
+                Log(f'[ERROR] API Not Found: "{str(Client_Request)}" !')
+                return "API_NOT-FOUND"
         else:
             Log(f'[ERROR] Invalid Request: "{str(Client_Request)}" !')
             return "INVALID_REQUEST"
@@ -70,15 +76,15 @@ def SirioAPI_Thread():
     def RawSocket_Server():
         Log(f'[System] INFO: Starting RawSockets Server...')
 
-        async def RawSocket_Handler(Client):
-            Client_Socket, Address = Client.accept()
+        async def RawSocket_Handler(Client_Socket):
+            Client, Address = Client_Socket.accept()
             Client_Address = str(Address[0])+":"+str(Address[1])
             Log(f'[Connection] OK: Raw://{Client_Address}.')
-            Client_Request = Client_Socket.recv(API_PacketSize).decode()
+            Client_Request = Client.recv(API_PacketSize).decode()
             Log(f'[Request] Raw://{Client_Address}: "{Client_Request}".')
             Server_Result = await Server_Redirect(Client_Request,Client_Address)
             Log(f'[Sending] Raw://{Client_Address}: {Server_Result}')
-            Client_Socket.send(Server_Result.encode())
+            Client.send(Server_Result.encode())
 
         def RawSocket_Async(RawSocket):
             asyncio.run(RawSocket_Handler(RawSocket))
@@ -98,33 +104,6 @@ def SirioAPI_Thread():
         Log(f'[System] OK: Now listening for RawSockets.')
         while True:
             threading.Thread(target=RawSocket_Async(API_RawSocket)).start()
-
-        """ This is the first code I've basically ever written in Python seriously. Let me tell you that I've seriously improved since then. 
-        This code is fucking garbage and unreadable. fml
-        Flashcord itself is next. For the 3rd fucking time. Gotta wait for discord to push their dipshit new UI first though
-        update minutes later: i basically rewrote the same shit bruh
-
-        async def Socket_Handler(Connection_Socket):
-            Client_Socket, Address = Connection_Socket.accept()
-            Client_Address = str(Address[0])+":"+str(Address[1])
-            Log(f"CONNECTED (RAW): {Client_Address}")
-            try: 
-                await Server_Redirect(Client_Address, False)
-            except Exception as ErrorInfo:
-                Log(f'CONNECTION ERROR: {Client_Address}. \n[TRACEBACK]\n{ErrorInfo}\n',True)
-
-        def Socket_Asyncer(Connection_Socket):
-            asyncio.run(Socket_Handler(Connection_Socket))
-            try: 
-                API_RawSocket.bind((API_RawSocket, API_RawPort))
-            except socket.error as ErrorInfo:
-                Log(f"ERROR: Failed to bind the server's address! \n[TRACEBACK]\n{ErrorInfo}\n",False)
-            Response = await Client.recv()
-            Log(f'SYSTEM: Initiated Socket Server.',False)
-            API_RawSocket.listen()
-            while True: threading.Thread(target=Socket_Asyncer(API_RawSocket)).start()
-            """
-
 
     def WebSocket_Server():
         Log(f'[System] INFO: Starting WebSockets Server...')
@@ -156,29 +135,24 @@ def SirioAPI_Thread():
 
 def Shutdown():
     Log(f'[System] SHUTDOWN: Shutting down server...')
-    """
     DWeb_Title = f'The "{SRV_Name}" Server is offline!'
     DWeb_Desc = "Trinity is the Front-End Server for the Sirio Network API. All services such as the Flashcord API, Sirio News API and etc are now unreachable! <@311057290562371586> will soon provide more information."
-    DWeb_Send(DWeb_Title, DWeb_Desc, "Public")
-    """
+    # DWeb_Send(DWeb_Title, DWeb_Desc, "Public")
     try: sys.exit(130)
     except SystemExit: os._exit(130)
     
 def Bootstrap():
     os.system("clear")
     Log(f"[System] Starting server...")
-    ServerCFG()
     threading.Thread(target=SirioAPI_Thread).start()
     Log(f'[System] Server initialized.')
-    """
     DWeb_Title = f'The "{SRV_Name}" Server is now online!'
     DWeb_Desc = "Trinity is the Front-End Server for the Sirio Network API. All services such as the Flashcord API, Sirio News API and etc are now accessible."
-    DWeb_Send(DWeb_Title, DWeb_Desc, "Public")
-    """
+    # DWeb_Send(DWeb_Title, DWeb_Desc, "Public")
     try:
         while True: 
-            Log(f'[System] Awaiting next Routine Loop in {RoutineTimeout} seconds.')
-            time.sleep(RoutineTimeout)
+            Log(f'[System] Awaiting next Routine Loop in {Routine_Sleep} seconds.')
+            time.sleep(Routine_Sleep)
             Log(f'[System] Executing Routine.')
     except KeyboardInterrupt:
         Shutdown()

@@ -111,6 +111,7 @@ def LoadCFG(CFG_File):
     return CFG
 
 # Checks if a specified array number exist
+# 04/10/24: This function is retarded! Just do "if [variable here]:"!!!
 def doesEntryExists(Array,Number):
     try:
         Dummy = Array[Number]
