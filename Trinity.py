@@ -23,7 +23,7 @@ dotenv.load_dotenv()
 
 # Own Modules
 from SN_PyDepends import *
-
+from SN_APIC import *
 
 Log(f'[System] Configuring server...')
 SRV_CFG = LoadCFG(os.path.basename(__file__).replace(".py", ".cfg"))
@@ -61,13 +61,13 @@ def SirioAPI_Thread():
 
     async def Server_Redirect(Client_Request,Client_Address):
         Client_Request = Client_Request.split("://")
-        if Client_Request[1]:
-            if Client_Request[0] in APIs.keys():
-                Log(f'[Forwarding] "{Client_Request[0]} API": {Client_Request[1]}')
-                return str(Client_Request[1])
-            else:
-                Log(f'[ERROR] API Not Found: "{str(Client_Request)}" !')
-                return "API_NOT-FOUND"
+        if len(Client_Request) >= 2:
+            for API in APIs:
+                if Client_Request[0].upper() == API.upper():
+                    Log(f'[Forwarding] "{Client_Request[0]} API": {Client_Request[1]}')
+                    return SirioAPI(f"{Client_Address}¤{Client_Request}", APIs[API]["Address"], APIs[API]["Port"]) # Janky!
+            Log(f'[ERROR] API Not Found: "{str(Client_Request)}" !')
+            return "API_NOT-FOUND"
         else:
             Log(f'[ERROR] Invalid Request: "{str(Client_Request)}" !')
             return "INVALID_REQUEST"
@@ -80,11 +80,13 @@ def SirioAPI_Thread():
             Client, Address = Client_Socket.accept()
             Client_Address = str(Address[0])+":"+str(Address[1])
             Log(f'[Connection] OK: Raw://{Client_Address}.')
+
             Client_Request = Client.recv(API_PacketSize).decode()
             Log(f'[Request] Raw://{Client_Address}: "{Client_Request}".')
             Server_Result = await Server_Redirect(Client_Request,Client_Address)
-            Log(f'[Sending] Raw://{Client_Address}: {Server_Result}')
-            Client.send(Server_Result.encode())
+
+            Log(f'[Sending] Raw://{Client_Address}: {Server_Result[0]}')
+            Client.send(Server_Result[0].encode())
 
         def RawSocket_Async(RawSocket):
             asyncio.run(RawSocket_Handler(RawSocket))
