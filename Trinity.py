@@ -61,11 +61,12 @@ def SirioAPI_Thread():
 
     async def Server_Redirect(Client_Request,Client_Address):
         Client_Request = Client_Request.split("://")
+        Client_Address = Client_Address.split(":")
         if len(Client_Request) >= 2:
             for API in APIs:
                 if Client_Request[0].upper() == API.upper():
                     Log(f'[Forwarding] "{Client_Request[0]} API": {Client_Request[1]}')
-                    return str(SirioAPI(f"{Client_Address}¤{Client_Request[1]}", APIs[API]["Address"], APIs[API]["Port"])[0]) # Janky!
+                    return str(SirioAPI(f"{Client_Address[0]}¤{Client_Request[1]}", APIs[API]["Address"], APIs[API]["Port"])[0]) # Janky!
             Log(f'[ERROR] API Not Found: "{str(Client_Request)}" !')
             return "API_NOT-FOUND"
         else:
