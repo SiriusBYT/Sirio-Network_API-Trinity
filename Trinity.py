@@ -65,7 +65,7 @@ def SirioAPI_Thread():
             for API in APIs:
                 if Client_Request[0].upper() == API.upper():
                     Log(f'[Forwarding] "{Client_Request[0]} API": {Client_Request[1]}')
-                    return SirioAPI(f"{Client_Address}¤{Client_Request.pop(0)}", APIs[API]["Address"], APIs[API]["Port"]) # Janky!
+                    return str(SirioAPI(f"{Client_Address}¤{Client_Request.pop(0)}", APIs[API]["Address"], APIs[API]["Port"])[0]) # Janky!
             Log(f'[ERROR] API Not Found: "{str(Client_Request)}" !')
             return "API_NOT-FOUND"
         else:
