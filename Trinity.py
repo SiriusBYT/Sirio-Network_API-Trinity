@@ -65,7 +65,7 @@ def SirioAPI_Thread():
             for API in APIs:
                 if Client_Request[0].upper() == API.upper():
                     Log(f'[Forwarding] "{Client_Request[0]} API": {Client_Request[1]}')
-                    return SirioAPI(f"{Client_Address}¤{Client_Request}", APIs[API]["Address"], APIs[API]["Port"]) # Janky!
+                    return SirioAPI(f"{Client_Address}¤{Client_Request.pop(0)}", APIs[API]["Address"], APIs[API]["Port"]) # Janky!
             Log(f'[ERROR] API Not Found: "{str(Client_Request)}" !')
             return "API_NOT-FOUND"
         else:
@@ -121,7 +121,7 @@ def SirioAPI_Thread():
             Log(f'[Request] Web://{Client_Address}: "{Client_Request}".')
             Server_Result = await Server_Redirect(Client_Request,Client_Address)
             Log(f'[Sending] Web://{Client_Address}: {Server_Result}')
-            await Client.send(str(Server_Result))
+            await Client.send(Server_Result)
 
         async def Websocket_Listener():
             Log(f'[System] OK: WebSockets thread started.')
